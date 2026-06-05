@@ -24,6 +24,12 @@
             </button>
             <span class="tooltip-text">Turn on Budget Mode to set a strict spending limit and track your threshold.</span>
           </div>
+          <div class="tooltip-wrap">
+            <button id="lock-toggle" class="header-btn" aria-label="Toggle session lock">
+              <i class="fas fa-lock-open"></i>
+            </button>
+            <span class="tooltip-text">Turn on Session Lock to permanently save your budget and expenses, or leave it off to clear your financial logs when you exit.</span>
+          </div>
           <button id="theme-toggle" class="header-btn" aria-label="Toggle theme">
             <i class="fas fa-moon"></i>
           </button>
@@ -153,6 +159,18 @@
       <div class="modal-actions">
         <button class="modal-btn modal-btn-cancel" id="modal-cancel">Cancel</button>
         <button class="modal-btn modal-btn-save" id="modal-save">Save Category</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="lock-confirm-modal">
+    <div class="modal-card">
+      <button class="modal-close" id="lock-confirm-close" aria-label="Close">&times;</button>
+      <h3>Warning</h3>
+      <p class="modal-sub">Deactivating Session Lock will cause all your current logs, budgets, and custom categories to be permanently wiped the moment you leave this page. Do you want to proceed?</p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="lock-confirm-cancel">Cancel</button>
+        <button class="modal-btn modal-btn-save" id="lock-confirm-proceed" style="background:#ef4444">Proceed</button>
       </div>
     </div>
   </div>

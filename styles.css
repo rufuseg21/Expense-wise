@@ -146,6 +146,10 @@ header {
   transform: scale(0.95);
 }
 
+.header-btn.lock-on {
+  color: var(--primary);
+}
+
 .tooltip-wrap {
   position: relative;
   display: flex;
@@ -421,6 +425,14 @@ section h2 i {
 .form-group select option {
   background: var(--bg-container);
   color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group select option,
+[data-theme="dark"] .expense-edit-category,
+[data-theme="dark"] .expense-edit-category option {
+  background: #2D2D2D;
+  color: #ffffff;
 }
 
 .form-group input[type="number"]::-webkit-outer-spin-button,
@@ -761,6 +773,112 @@ section h2 i {
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12);
 }
 
+.expense-edit-name,
+.expense-edit-amount,
+.expense-edit-category {
+  max-width: 100%;
+}
+
+/* ------ Cancel Edit Button ------ */
+
+.cancel-edit-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 12px;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.15s;
+  font-size: 14px;
+}
+
+.cancel-edit-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  transform: scale(1.1);
+}
+
+.cancel-edit-btn:active {
+  transform: scale(0.95);
+}
+
+/* ------ More Actions (mobile) ------ */
+
+.more-wrap {
+  position: relative;
+  display: none;
+}
+
+.more-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+
+.more-btn:hover {
+  background: var(--toggle-bg);
+}
+
+.more-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--bg-container);
+  border: 1px solid var(--border-section);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 130px;
+  z-index: 20;
+  display: none;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.more-dropdown.open {
+  display: block;
+}
+
+.more-dropdown-item {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.more-dropdown-item:hover {
+  background: var(--toggle-bg);
+}
+
+.more-dropdown-item i {
+  width: 16px;
+  font-size: 13px;
+}
+
 /* ------ Pie Chart ------ */
 
 .pie-chart-wrapper {
@@ -992,6 +1110,14 @@ section h2 i {
   background: var(--primary-hover);
 }
 
+#lock-confirm-proceed {
+  background: #ef4444;
+  color: #ffffff;
+}
+#lock-confirm-proceed:hover {
+  background: #dc2626 !important;
+}
+
 /* ------ Toast ------ */
 
 .budget-toast {
@@ -1054,17 +1180,36 @@ section h2 i {
   }
 
   .logo h1 {
-    font-size: 24px;
+    font-size: 18px;
+  }
+
+  .logo i {
+    font-size: 22px;
+  }
+
+  .logo {
+    gap: 6px;
+    min-width: 0;
   }
 
   .header-top {
-    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .header-actions {
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .header-btn {
     width: 36px;
     height: 36px;
     font-size: 14px;
+  }
+
+  .tooltip-text {
+    width: 200px;
+    right: -20px;
   }
 
   .pie-chart-layout {
@@ -1086,6 +1231,41 @@ section h2 i {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .expense-item .edit-btn,
+  .expense-item .delete-btn {
+    display: none;
+  }
+
+  .more-wrap {
+    display: block;
+  }
+
+  .expense-item.editing {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .expense-item.editing .expense-category-icon {
+    margin-bottom: 4px;
+  }
+
+  .expense-edit-fields {
+    width: 100%;
+  }
+
+  .expense-edit-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .expense-edit-amount {
+    width: 100%;
+  }
+
+  .expense-edit-category {
+    width: 100%;
   }
 
   .total-display {

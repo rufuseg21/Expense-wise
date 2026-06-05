@@ -56,12 +56,129 @@ const colorPicker = document.getElementById('color-picker');
 const errorCustomName = document.getElementById('error-custom-name');
 const errorCustomColor = document.getElementById('error-custom-color');
 
+const lockToggle = document.getElementById('lock-toggle');
+const lockIcon = lockToggle.querySelector('i');
+const lockConfirmModal = document.getElementById('lock-confirm-modal');
+const lockConfirmClose = document.getElementById('lock-confirm-close');
+const lockConfirmCancel = document.getElementById('lock-confirm-cancel');
+const lockConfirmProceed = document.getElementById('lock-confirm-proceed');
+
+// ─── Toast ────────────────────────────────────────────────────────
+
+function showToast(message, type) {
+  const existing = document.querySelector('.dynamic-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'budget-toast show dynamic-toast';
+  let bg, border, color, icon;
+  if (type === 'success') {
+    bg = '#ecfdf5'; border = '#a7f3d0'; color = '#065f46'; icon = 'fa-check-circle';
+  } else if (type === 'warning') {
+    bg = '#fffbeb'; border = '#fde68a'; color = '#92400e'; icon = 'fa-exclamation-triangle';
+  } else {
+    bg = '#eff6ff'; border = '#bfdbfe'; color = '#1e40af'; icon = 'fa-info-circle';
+  }
+  toast.style.background = bg;
+  toast.style.borderColor = border;
+  toast.style.color = color;
+  toast.innerHTML = '<i class="fas ' + icon + '"></i><span>' + escapeHtml(message) + '</span>';
+  document.body.appendChild(toast);
+  setTimeout(function () {
+    toast.classList.remove('show');
+    setTimeout(function () { toast.remove(); }, 300);
+  }, 3000);
+}
+
+// ─── Session Lock ────────────────────────────────────────────────
+
+function getStorage() {
+  return sessionLock ? localStorage : sessionStorage;
+}
+
+function initSessionLock() {
+  const stored = localStorage.getItem('expense-wise-session-lock');
+  sessionLock = stored === 'true';
+  if (!sessionLock) {
+    localStorage.removeItem('expense-wise');
+    localStorage.removeItem('expense-wise-budget');
+    localStorage.removeItem('expense-wise-custom-cat');
+    sessionStorage.removeItem('expense-wise');
+    sessionStorage.removeItem('expense-wise-budget');
+    sessionStorage.removeItem('expense-wise-custom-cat');
+    expenses = [];
+    customCategory = null;
+    budgetData = { on: false, amount: 0 };
+  }
+  updateLockUI();
+}
+
+function saveSessionLock() {
+  localStorage.setItem('expense-wise-session-lock', sessionLock ? 'true' : 'false');
+}
+
+function updateLockUI() {
+  lockIcon.className = sessionLock ? 'fas fa-lock' : 'fas fa-lock-open';
+  lockToggle.classList.toggle('lock-on', sessionLock);
+}
+
+function openLockConfirm() {
+  lockConfirmModal.classList.add('active');
+}
+
+function closeLockConfirm() {
+  lockConfirmModal.classList.remove('active');
+}
+
+function confirmDeactivateLock() {
+  sessionLock = false;
+  saveSessionLock();
+  ['expense-wise', 'expense-wise-budget', 'expense-wise-custom-cat'].forEach(function (key) {
+    const data = localStorage.getItem(key);
+    if (data) {
+      sessionStorage.setItem(key, data);
+      localStorage.removeItem(key);
+    }
+  });
+  closeLockConfirm();
+  updateLockUI();
+  showToast('Session Lock Deactivated. Your data will clear on exit.', 'warning');
+}
+
+function activateLock() {
+  sessionLock = true;
+  saveSessionLock();
+  saveExpenses();
+  saveCustomCategory();
+  saveBudgetData();
+  ['expense-wise', 'expense-wise-budget', 'expense-wise-custom-cat'].forEach(function (key) {
+    sessionStorage.removeItem(key);
+  });
+  updateLockUI();
+  showToast('Session Lock Activated. Your data will be securely saved.', 'success');
+}
+
+function toggleSessionLock() {
+  if (sessionLock) {
+    openLockConfirm();
+  } else {
+    activateLock();
+  }
+}
+
+lockToggle.addEventListener('click', toggleSessionLock);
+lockConfirmClose.addEventListener('click', closeLockConfirm);
+lockConfirmCancel.addEventListener('click', closeLockConfirm);
+lockConfirmProceed.addEventListener('click', confirmDeactivateLock);
+lockConfirmModal.addEventListener('click', function (e) { if (e.target === this) closeLockConfirm(); });
+
 let expenses = [];
 let customCategory = null;
 let budgetData = { on: false, amount: 0 };
 let selectedColor = null;
 let toastTimer = null;
 let editingIndex = -1;
+let sessionLock = false;
+let isEditingCategory = false;
 
 // ─── Theme ────────────────────────────────────────────────────────
 
@@ -86,7 +203,7 @@ setTheme(getPreferredTheme());
 // ─── Custom Category ─────────────────────────────────────────────
 
 function loadCustomCategory() {
-  const stored = localStorage.getItem('expense-wise-custom-cat');
+  const stored = getStorage().getItem('expense-wise-custom-cat');
   if (!stored) return;
   try {
     customCategory = JSON.parse(stored);
@@ -97,9 +214,9 @@ function loadCustomCategory() {
 
 function saveCustomCategory() {
   if (customCategory) {
-    localStorage.setItem('expense-wise-custom-cat', JSON.stringify(customCategory));
+    getStorage().setItem('expense-wise-custom-cat', JSON.stringify(customCategory));
   } else {
-    localStorage.removeItem('expense-wise-custom-cat');
+    getStorage().removeItem('expense-wise-custom-cat');
   }
 }
 
@@ -125,12 +242,12 @@ function rebuildCategoryOptions() {
     o.value = customCategory.name;
     o.textContent = customCategory.name;
     categorySelect.appendChild(o);
-  } else {
-    const o = document.createElement('option');
-    o.value = ADD_CUSTOM_VALUE;
-    o.textContent = '+ Add Custom Category';
-    categorySelect.appendChild(o);
   }
+
+  const action = document.createElement('option');
+  action.value = ADD_CUSTOM_VALUE;
+  action.textContent = customCategory ? '+ Edit Custom Category' : '+ Add Custom Category';
+  categorySelect.appendChild(action);
 
   const exists = [...categorySelect.options].some(o => o.value === prev);
   if (prev && exists) categorySelect.value = prev;
@@ -152,18 +269,40 @@ function populateSelect(el) {
   }
 }
 
-function openCategoryModal() {
-  categoryModal.classList.add('active');
+function openCreateCategoryModal() {
+  isEditingCategory = false;
+  categoryModal.querySelector('h3').textContent = 'Create Custom Category';
+  categoryModal.querySelector('.modal-sub').textContent = 'Name your category and pick a color';
+  modalSave.textContent = 'Save Category';
   customCatName.value = '';
   selectedColor = null;
   errorCustomName.textContent = '';
   errorCustomColor.textContent = '';
   document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+  categoryModal.classList.add('active');
+  customCatName.focus();
+}
+
+function openEditCategoryModal() {
+  if (!customCategory) return;
+  isEditingCategory = true;
+  categoryModal.querySelector('h3').textContent = 'Edit Custom Category';
+  categoryModal.querySelector('.modal-sub').textContent = 'Update the name or color of your custom category';
+  modalSave.textContent = 'Update Category';
+  customCatName.value = customCategory.name;
+  selectedColor = customCategory.color;
+  errorCustomName.textContent = '';
+  errorCustomColor.textContent = '';
+  document.querySelectorAll('.color-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.color === customCategory.color);
+  });
+  categoryModal.classList.add('active');
   customCatName.focus();
 }
 
 function closeCategoryModal() {
   categoryModal.classList.remove('active');
+  isEditingCategory = false;
 }
 
 function handleSaveCustom() {
@@ -172,24 +311,41 @@ function handleSaveCustom() {
   if (!selectedColor) { errorCustomColor.textContent = 'Please pick a color.'; return; }
   errorCustomName.textContent = '';
   errorCustomColor.textContent = '';
-  customCategory = { name, color: selectedColor };
-  categoryIcons[name] = 'fa-tag';
-  categoryColors[name] = selectedColor;
+
+  if (isEditingCategory && customCategory) {
+    const oldName = customCategory.name;
+    if (oldName !== name) {
+      delete categoryIcons[oldName];
+      delete categoryColors[oldName];
+      expenses.forEach(function (exp) {
+        if (exp.category === oldName) exp.category = name;
+      });
+      saveExpenses();
+    }
+    categoryIcons[name] = 'fa-tag';
+    categoryColors[name] = selectedColor;
+    customCategory = { name: name, color: selectedColor };
+  } else {
+    customCategory = { name: name, color: selectedColor };
+    categoryIcons[name] = 'fa-tag';
+    categoryColors[name] = selectedColor;
+  }
+
   saveCustomCategory();
   rebuildCategoryOptions();
   categorySelect.value = name;
   closeCategoryModal();
+  render();
+  isEditingCategory = false;
 }
 
 categorySelect.addEventListener('change', function () {
   if (this.value === ADD_CUSTOM_VALUE) {
-    categoryModal.classList.add('active');
-    customCatName.value = '';
-    selectedColor = null;
-    errorCustomName.textContent = '';
-    errorCustomColor.textContent = '';
-    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
-    customCatName.focus();
+    if (customCategory) {
+      openEditCategoryModal();
+    } else {
+      openCreateCategoryModal();
+    }
     this.value = '';
   }
 });
@@ -215,13 +371,13 @@ customCatName.addEventListener('keydown', function (e) {
 // ─── Budget Mode ─────────────────────────────────────────────────
 
 function loadBudgetData() {
-  const stored = localStorage.getItem('expense-wise-budget');
+  const stored = getStorage().getItem('expense-wise-budget');
   if (!stored) return;
   try { budgetData = JSON.parse(stored); } catch { budgetData = { on: false, amount: 0 }; }
 }
 
 function saveBudgetData() {
-  localStorage.setItem('expense-wise-budget', JSON.stringify(budgetData));
+  getStorage().setItem('expense-wise-budget', JSON.stringify(budgetData));
 }
 
 function updateBudgetUI() {
@@ -356,14 +512,14 @@ function syncPieChart() {
 // ─── Expense Data ────────────────────────────────────────────────
 
 function loadExpenses() {
-  const stored = localStorage.getItem('expense-wise');
+  const stored = getStorage().getItem('expense-wise');
   if (!stored) return;
   try { expenses = JSON.parse(stored); } catch { expenses = []; }
   render();
 }
 
 function saveExpenses() {
-  localStorage.setItem('expense-wise', JSON.stringify(expenses));
+  getStorage().setItem('expense-wise', JSON.stringify(expenses));
 }
 
 function formatCurrency(amount) {
@@ -427,10 +583,35 @@ function render() {
       delBtn.innerHTML = '<i class="fas fa-trash"></i>';
       delBtn.setAttribute('aria-label', 'Delete expense');
 
+      const moreWrap = document.createElement('div');
+      moreWrap.className = 'more-wrap';
+      const moreBtn = document.createElement('button');
+      moreBtn.className = 'more-btn';
+      moreBtn.dataset.index = i;
+      moreBtn.innerHTML = '<i class="fas fa-ellipsis-h"></i>';
+      moreBtn.setAttribute('aria-label', 'More actions');
+      const moreDropdown = document.createElement('div');
+      moreDropdown.className = 'more-dropdown';
+      const editItem = document.createElement('button');
+      editItem.className = 'more-dropdown-item';
+      editItem.dataset.index = i;
+      editItem.dataset.action = 'edit';
+      editItem.innerHTML = '<i class="fas fa-pencil-alt"></i> Edit';
+      const delItem = document.createElement('button');
+      delItem.className = 'more-dropdown-item';
+      delItem.dataset.index = i;
+      delItem.dataset.action = 'delete';
+      delItem.innerHTML = '<i class="fas fa-trash"></i> Delete';
+      moreDropdown.appendChild(editItem);
+      moreDropdown.appendChild(delItem);
+      moreWrap.appendChild(moreBtn);
+      moreWrap.appendChild(moreDropdown);
+
       const btnGroup = document.createElement('div');
       btnGroup.style.cssText = 'display:flex;align-items:center;flex-shrink:0;';
       btnGroup.appendChild(editBtn);
       btnGroup.appendChild(delBtn);
+      btnGroup.appendChild(moreWrap);
 
       row.appendChild(icon);
       row.appendChild(info);
@@ -470,6 +651,30 @@ expensesContainer.addEventListener('click', function (e) {
     return;
   }
 
+  const moreBtn = e.target.closest('.more-btn');
+  if (moreBtn) {
+    document.querySelectorAll('.more-dropdown.open').forEach(function (d) {
+      if (d !== moreBtn.nextElementSibling) d.classList.remove('open');
+    });
+    const dropdown = moreBtn.nextElementSibling;
+    if (dropdown) dropdown.classList.toggle('open');
+    return;
+  }
+
+  const dropdownItem = e.target.closest('.more-dropdown-item');
+  if (dropdownItem) {
+    const index = parseInt(dropdownItem.dataset.index, 10);
+    const action = dropdownItem.dataset.action;
+    dropdownItem.closest('.more-dropdown').classList.remove('open');
+    if (action === 'edit') {
+      const row = dropdownItem.closest('.expense-item');
+      if (!isNaN(index) && row) enterEditMode(index, row);
+    } else if (action === 'delete') {
+      if (!isNaN(index)) { if (editingIndex === index) editingIndex = -1; expenses.splice(index, 1); saveExpenses(); render(); }
+    }
+    return;
+  }
+
   const saveBtn = e.target.closest('.save-btn');
   if (saveBtn) {
     const index = parseInt(saveBtn.dataset.index, 10);
@@ -481,6 +686,14 @@ expensesContainer.addEventListener('click', function (e) {
   if (cancelBtn) {
     editingIndex = -1;
     render();
+  }
+});
+
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.more-wrap')) {
+    document.querySelectorAll('.more-dropdown.open').forEach(function (d) {
+      d.classList.remove('open');
+    });
   }
 });
 
@@ -535,7 +748,7 @@ function enterEditMode(index, row) {
   saveBtn.setAttribute('aria-label', 'Save');
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'delete-btn cancel-edit-btn';
+  cancelBtn.className = 'cancel-edit-btn';
   cancelBtn.style.marginLeft = '12px';
   cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
   cancelBtn.setAttribute('aria-label', 'Cancel');
@@ -613,6 +826,7 @@ form.addEventListener('submit', function (e) {
 
 // ─── Init ────────────────────────────────────────────────────────
 
+initSessionLock();
 loadCustomCategory();
 loadBudgetData();
 rebuildCategoryOptions();
